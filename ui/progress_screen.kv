@@ -1,0 +1,125 @@
+#:kivy 1.11.1
+#:import kivy.utils kivy.utils
+#:import kivy.properties kivy.properties
+#:import kivy.uix.boxlayout boxlayout
+#:import kivy.uix.scrollview scrollview
+#:import kivy.uix.floatlayout floatlayout
+
+<ProgressScreen>:
+    orientation: 'vertical'
+
+    MDTopAppBar:
+        title: "پیشرفت ترجمه"
+        elevation: 4
+        background_color: app.theme_cls.primary_color
+        left_action_items: [['arrow-left', lambda x: app.show_main_screen()]]
+
+    MDScrollView:
+
+        MDBoxLayout:
+            orientation: 'vertical'
+            padding: 'dp(20)'
+            spacing: 'dp(20)'
+
+            # Progress Card
+            MDCard:
+                orientation: 'vertical'
+                padding: 'dp(20)'
+                radius: [15]
+
+                MDLabel:
+                    text: "پیشرفت کلی"
+                    halign: 'center'
+                    font_style: 'H6'
+                    size_hint_y: None
+                    height: self.texture_size[1] + 'dp(20)'
+
+                MDLabel:
+                    text: f"در حال پردازش: {app.current_progress}/{app.total_progress}"
+                    halign: 'center'
+                    font_style: 'Body1'
+                    size_hint_y: None
+                    height: self.texture_size[1] + 'dp(20)'
+
+                MDProgressBar:
+                    value: app.progress_value
+                    size_hint_y: None
+                    height: 'dp(15)'
+
+                MDLabel:
+                    text: f"{app.progress_value:.1f}%"
+                    halign: 'center'
+                    font_style: 'Caption'
+                    size_hint_y: None
+                    height: self.texture_size[1] + 'dp(10)'
+
+                MDLabel:
+                    text: app.progress_status
+                    halign: 'center'
+                    font_style: 'Body1'
+                    size_hint_y: None
+                    height: self.texture_size[1] + 'dp(20)'
+
+            # Translation Stats
+            MDCard:
+                orientation: 'vertical'
+                padding: 'dp(20)'
+                radius: [15]
+
+                MDLabel:
+                    text: "آمار ترجمه"
+                    halign: 'center'
+                    font_style: 'H6'
+                    size_hint_y: None
+                    height: self.texture_size[1] + 'dp(20)'
+
+                MDLabel:
+                    text: f"موفق: {app.success_count}"
+                    halign: 'center'
+                    font_style: 'Body1'
+
+                MDLabel:
+                    text: f"ناموفق: {app.failed_count}"
+                    halign: 'center'
+                    font_style: 'Body1'
+
+                MDLabel:
+                    text: f"تکراری: {app.skipped_count}"
+                    halign: 'center'
+                    font_style: 'Body1'
+
+            # Translation Log
+            MDCard:
+                orientation: 'vertical'
+                padding: 'dp(20)'
+                radius: [15]
+
+                MDLabel:
+                    text: "لاگ ترجمه"
+                    halign: 'center'
+                    font_style: 'H6'
+                    size_hint_y: None
+                    height: self.texture_size[1] + 'dp(20)'
+
+                MDScrollView:
+                    MDBoxLayout:
+                        orientation: 'vertical'
+                        id: translation_log
+                        spacing: 'dp(10)'
+
+            # Control Buttons
+            MDRaisedButton:
+                text: "توقف"
+                icon: "stop"
+                size_hint_y: None
+                height: 'dp(50)'
+                pos_hint: {'center_x': 0.5}
+                on_release: app.stop_translation()
+
+            MDRaisedButton:
+                text: "بازگشت به منو"
+                icon: "menu"
+                size_hint_y: None
+                height: 'dp(50)'
+                pos_hint: {'center_x': 0.5}
+                on_release: app.show_main_screen()

@@ -1,0 +1,159 @@
+#:kivy 1.11.1
+#:import kivy.utils kivy.utils
+#:import kivy.properties kivy.properties
+#:import kivy.uix.boxlayout boxlayout
+#:import kivy.uix.scrollview scrollview
+#:import kivy.uix.floatlayout floatlayout
+
+<SettingsScreen>:
+    orientation: 'vertical'
+
+    MDTopAppBar:
+        title: "تنظیمات"
+        elevation: 4
+        background_color: app.theme_cls.primary_color
+        left_action_items: [['arrow-left', lambda x: app.show_main_screen()]]
+
+    MDScrollView:
+
+        MDBoxLayout:
+            orientation: 'vertical'
+            padding: 'dp(20)'
+            spacing: 'dp(20)'
+
+            # API Keys Section
+            MDCard:
+                orientation: 'vertical'
+                padding: 'dp(20)'
+                radius: [15]
+
+                MDLabel:
+                    text: "کلیدهای API"
+                    halign: 'center'
+                    font_style: 'H6'
+                    size_hint_y: None
+                    height: self.texture_size[1] + 'dp(20)'
+
+                MDTextField:
+                    hint_text: "نام کلید"
+                    mode: "rectangle"
+                    multiline: False
+                    id: key_name_input
+
+                MDTextField:
+                    hint_text: "کلید API"
+                    mode: "rectangle"
+                    multiline: False
+                    id: key_api_input
+
+                MDRaisedButton:
+                    text: "افزودن کلید"
+                    icon: "plus"
+                    on_release: app.add_api_key_dialog()
+
+                MDList:
+                    id: api_keys_list
+
+            # Current Profile Section
+            MDCard:
+                orientation: 'vertical'
+                padding: 'dp(20)'
+                radius: [15]
+
+                MDLabel:
+                    text: "پروفایل فعلی"
+                    halign: 'center'
+                    font_style: 'H6'
+                    size_hint_y: None
+                    height: self.texture_size[1] + 'dp(20)'
+
+                MDLabel:
+                    text: app.current_profile_name or "هیچ پروفایلی انتخاب نشده"
+                    halign: 'center'
+                    font_style: 'Body1'
+
+                MDRaisedButton:
+                    text: "تغییر پروفایل"
+                    on_release: app.change_profile_dialog()
+
+            # Settings Options
+            MDCard:
+                orientation: 'vertical'
+                padding: 'dp(20)'
+                radius: [15]
+
+                MDLabel:
+                    text: "تنظیمات"
+                    halign: 'center'
+                    font_style: 'H6'
+                    size_hint_y: None
+                    height: self.texture_size[1] + 'dp(20)'
+
+                MDCheckbox:
+                    text: "خروجی خودکار HTML"
+                    active: app.auto_save_html
+                    on_active: app.toggle_auto_save_html(self.active)
+
+                MDCheckbox:
+                    text: "خروجی خودکار PDF"
+                    active: app.auto_save_pdf
+                    on_active: app.toggle_auto_save_pdf(self.active)
+
+                MDLabel:
+                    text: "تم تاریک"
+                    halign: 'center'
+                    font_style: 'Body1'
+
+                MDLabel:
+                    text: app.theme_mode
+                    halign: 'center'
+                    font_style: 'Caption'
+
+    # Add API Key Dialog
+    MDDialog:
+        title: "افزودن کلید API"
+        type: "custom"
+        radius: [15, 15, 0, 0]
+
+        MDBoxLayout:
+            orientation: 'vertical'
+            padding: 'dp(20)'
+            spacing: 'dp(20)'
+
+            MDTextField:
+                hint_text: "نام کلید"
+                mode: "rectangle"
+                multiline: False
+                id: dialog_key_name
+
+            MDTextField:
+                hint_text: "کلید API"
+                mode: "rectangle"
+                multiline: False
+                id: dialog_key_api
+
+            MDRaisedButton:
+                text: "افزودن"
+                on_release: app.confirm_add_api_key()
+
+            MDRaisedButton:
+                text: "انصراف"
+                on_release: app.dismiss_dialog()
+
+    # Change Profile Dialog
+    MDDialog:
+        title: "تغییر پروفایل"
+        type: "custom"
+        radius: [15, 15, 0, 0]
+
+        MDBoxLayout:
+            orientation: 'vertical'
+            padding: 'dp(20)'
+            spacing: 'dp(20)'
+
+            MDList:
+                id: profile_list
+
+            MDRaisedButton:
+                text: "انصراف"
+                on_release: app.dismiss_dialog()

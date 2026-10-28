@@ -1,0 +1,176 @@
+#:kivy 1.11.1
+#:import kivy.utils kivy.utils
+#:import kivy.properties kivy.properties
+#:import kivy.uix.boxlayout boxlayout
+#:import kivy.uix.scrollview scrollview
+#:import kivy.uix.floatlayout floatlayout
+#:import kivy.uix.recycleview recycleview
+
+<MainScreen>:
+    orientation: 'vertical'
+
+    MDTopAppBar:
+        title: "مترجم PDF با Gemini"
+        elevation: 4
+        background_color: app.theme_cls.primary_color
+
+    MDScrollView:
+
+        MDBoxLayout:
+            orientation: 'vertical'
+            padding: 'dp(20)'
+            spacing: 'dp(20)'
+
+            # File Selection Card
+            MDCard:
+                orientation: 'vertical'
+                padding: 'dp(20)'
+                radius: [15]
+
+                MDLabel:
+                    text: "انتخاب فایل PDF"
+                    halign: 'center'
+                    font_style: 'H6'
+                    size_hint_y: None
+                    height: self.texture_size[1] + 'dp(20)'
+
+                MDFloatingActionButton:
+                    icon: 'upload'
+                    elevation: 6
+                    md_bg_color: app.theme_cls.primary_color
+                    pos_hint: {'center_x': 0.5, 'center_y': 0.5}
+                    on_release: app.open_pdf_dialog()
+
+                MDLabel:
+                    text: app.current_file or "فایلی انتخاب نشده"
+                    halign: 'center'
+                    font_style: 'Caption'
+                    size_hint_y: None
+                    height: self.texture_size[1] + 'dp(10)'
+
+            # Translation Button
+            MDRaisedButton:
+                text: "شروع ترجمه"
+                icon: 'translate'
+                elevation: 6
+                size_hint_y: None
+                height: 'dp(50)'
+                pos_hint: {'center_x': 0.5}
+                on_release: app.start_translation()
+
+            # Output Selection
+            MDCard:
+                orientation: 'vertical'
+                padding: 'dp(20)'
+                radius: [15]
+
+                MDLabel:
+                    text: "انتخاب خروجی"
+                    halign: 'center'
+                    font_style: 'H6'
+                    size_hint_y: None
+                    height: self.texture_size[1] + 'dp(20)'
+
+                MDCheckbox:
+                    text: "HTML"
+                    active: app.html_output
+                    on_active: app.toggle_html_output(self.active)
+
+                MDCheckbox:
+                    text: "PDF"
+                    active: app.pdf_output
+                    on_active: app.toggle_pdf_output(self.active)
+
+            # Stats Display
+            MDCard:
+                orientation: 'vertical'
+                padding: 'dp(20)'
+                radius: [15]
+
+                MDLabel:
+                    text: "آمار امروز"
+                    halign: 'center'
+                    font_style: 'H6'
+                    size_hint_y: None
+                    height: self.texture_size[1] + 'dp(20)'
+
+                MDLabel:
+                    text: f"درخواست‌ها: {app.daily_requests}/{app.daily_limit}"
+                    halign: 'center'
+                    font_style: 'Body1'
+
+                MDLabel:
+                    text: f"توکن: {app.tokens_used}/{app.tokens_limit}"
+                    halign: 'center'
+                    font_style: 'Body1'
+
+                MDProgressBar:
+                    value: app.usage_percent
+                    size_hint_y: None
+                    height: 'dp(10)'
+
+    # Dialog for file selection
+    MDDialog:
+        title: "انتخاب فایل PDF"
+        type: "custom"
+        radius: [15, 15, 0, 0]
+
+        MDBoxLayout:
+            orientation: 'vertical'
+            padding: 'dp(20)'
+            spacing: 'dp(20)'
+
+            MDTextField:
+                hint_text: "مسیر فایل PDF"
+                mode: "rectangle"
+                multiline: False
+                text: app.temp_pdf_path
+                on_text_validate: app.on_pdf_path_set()
+
+            MDRaisedButton:
+                text: "انتخاب"
+                on_release: app.open_file_picker()
+
+            MDRaisedButton:
+                text: "انتخاب از حافظه"
+                on_release: app.open_storage_picker()
+
+            MDRaisedButton:
+                text: "انصراف"
+                on_release: app.dismiss_dialog()
+
+    # Progress Dialog
+    MDDialog:
+        title: "در حال ترجمه..."
+        type: "custom"
+        radius: [15, 15, 0, 0]
+
+        MDBoxLayout:
+            orientation: 'vertical'
+            padding: 'dp(20)'
+            spacing: 'dp(20)'
+
+            MDLabel:
+                text: f"در حال پردازش: {app.current_progress}/{app.total_progress}"
+                halign: 'center'
+                font_style: 'H6'
+
+            MDProgressBar:
+                value: app.progress_value
+                size_hint_y: None
+                height: 'dp(10)'
+
+            MDLabel:
+                text: app.progress_status
+                halign: 'center'
+                font_style: 'Caption'
+
+    # Settings Screen Button
+    MDRaisedButton:
+        text: "⚙️ تنظیمات"
+        icon: "cog"
+        size_hint_y: None
+        height: 'dp(50)'
+        pos_hint: {'right': 1, 'top': 1}
+        elevation: 6
+        on_release: app.show_settings_screen()
