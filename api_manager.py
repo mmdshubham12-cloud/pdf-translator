@@ -25,29 +25,39 @@ class APIManager:
 
     def _load_config(self) -> Dict:
         """Load configuration file"""
+        defaults = {
+            "api_keys": [],
+            "current_profile": None,
+            "default_api_key": None,
+            "settings": {
+                "output_format": "pdf",
+                "html_output": True,
+                "pdf_output": True,
+                "auto_save": True,
+                "theme": "dark"
+            },
+            "stats": {
+                "total_requests": 0,
+                "today_requests": 0,
+                "last_reset": None
+            }
+        }
         try:
             import yaml
             with open(self.config_path, 'r', encoding='utf-8') as f:
-                return yaml.safe_load(f)
+                data = yaml.safe_load(f)
+            # Empty or invalid file -> fall back to defaults
+            if not isinstance(data, dict):
+                return defaults
+            return data
+        except FileNotFoundError:
+            # First run: create config with defaults
+            self.config = defaults
+            self._save_config()
+            return defaults
         except Exception as e:
             print(f"❌ خطا در لود کانفیگ: {e}")
-            return {
-                "api_keys": [],
-                "current_profile": None,
-                "default_api_key": None,
-                "settings": {
-                    "output_format": "pdf",
-                    "html_output": True,
-                    "pdf_output": True,
-                    "auto_save": True,
-                    "theme": "dark"
-                },
-                "stats": {
-                    "total_requests": 0,
-                    "today_requests": 0,
-                    "last_reset": None
-                }
-            }
+            return defaults
 
     def _load_stats(self) -> Dict:
         """Load API stats file"""
