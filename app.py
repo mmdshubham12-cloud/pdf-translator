@@ -1,331 +1,516 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-PDF Translator Application with Kivy/KivyMD
-Main application class with UI management
+PDF Translator with Gemini - Android GUI (KivyMD)
 """
 
-from kivy.app import App
-from kivy.uix.screenmanager import ScreenManager, Screen
-from kivy.properties import NumericProperty, StringProperty, BooleanProperty
-from kivy.clock import Clock
+import os
+import sys
 import threading
 from pathlib import Path
 
-# Add parent directory to path
-import sys
-sys.path.insert(0, str(Path(__file__).parent))
+BASE_DIR = str(Path(__file__).parent)
+sys.path.insert(0, BASE_DIR)
 
-from pdf_utils import PDFProcessor, TranslationManager
+import platform
+from kivy.clock import Clock
+from kivy.core.text import LabelBase
+from kivy.lang import Builder
+from kivymd.app import MDApp
+from kivymd.uix.screenmanager import MDScreenManager
+from kivymd.uix.dialog import MDDialog
+from kivymd.uix.snackbar import MDSnackbar
+from kivymd.uix.filemanager import MDFileManager
+
 from api_manager import APIManager
+from pdf_utils import PDFProcessor, TranslationManager
 from translator import TranslationEngine, CloudflareWorkerTranslator
 from output_generator import OutputManager
 
-# OneLineListItem imported from kivymd
-from kivymd.uix.list import OneLineListItem
+# Persian font for proper Arabic-script rendering
+FONT_REG = os.path.join(BASE_DIR, "assets", "Vazirmatn-Regular.ttf")
+FONT_BOLD = os.path.join(BASE_DIR, "assets", "Vazirmatn-Bold.ttf")
+
+try:
+    import arabic_reshaper
+    from bidi.algorithm import get_display
+
+    def fa(text):
+        """Reshape + bidi Persian text so it renders correctly in Kivy."""
+        return get_display(arabic_reshaper.reshape(str(text)))
+    HAS_FA = True
+except ImportError:
+    def fa(text):
+        return str(text)
+    HAS_FA = False
 
 
-class MainScreen(Screen):
-    """Main screen for PDF translation"""
-    current_file = StringProperty("")
-    temp_pdf_path = StringProperty("")
-    html_output = BooleanProperty(True)
-    pdf_output = BooleanProperty(True)
-    daily_requests = NumericProperty(0)
-    daily_limit = NumericProperty(500)
-    tokens_used = NumericProperty(0)
-    tokens_limit = NumericProperty(250000)
-    usage_percent = NumericProperty(0)
+KV = """
+MDScreenManager:
+    MainScreen:
+        id: main_screen
+    KeysScreen:
+        id: keys_screen
+    ProgressScreen:
+        id: progress_screen
 
-    def on_enter(self):
-        """Called when screen is entered"""
-        app = App.get_running_app()
-        stats = app.api_manager.get_stats()
-        self.daily_requests = stats['daily_requests']
-        self.daily_limit = stats['daily_limit']
-        self.tokens_used = stats['tokens_used']
-        self.tokens_limit = stats['tokens_limit']
-        self.usage_percent = stats['usage_percent']
+<MainScreen>:
+    md_bg_color: app.theme_cls.backgroundColor
+
+    MDBoxLayout:
+        orientation: "vertical"
+
+        MDTopAppBar:
+            title: "مترجم PDF"
+            right_action_items: [["cog", lambda x: app.go_keys()]]
+
+        MDBoxLayout:
+            orientation: "vertical"
+            padding: dp(20)
+            spacing: dp(16)
+
+            MDCard:
+                orientation: "vertical"
+                padding: dp(20)
+                spacing: dp(12)
+                radius: [dp(16)]
+                md_bg_color: app.theme_cls.primaryContainerColor
+
+                MDLabel:
+                    id: file_label
+                    text: "فایلی انتخاب نشده است"
+                    halign: "center"
+                    font_name: app.fa_font
+                    font_style: "H6"
+                    adaptive_height: True
+
+                MDRaisedButton:
+                    text: "انتخاب فایل PDF"
+                    font_name: app.fa_font
+                    pos_hint: {"center_x": .5}
+                    on_release: app.open_file_picker()
+
+            MDCard:
+                orientation: "vertical"
+                padding: dp(20)
+                spacing: dp(12)
+                radius: [dp(16)]
+
+                MDLabel:
+                    text: "درخواست‌های امروز"
+                    halign: "center"
+                    font_name: app.fa_font
+                    font_style: "Body2"
+
+                MDProgressBar:
+                    id: quota_bar
+                    value: 0
+                    max: 500
+
+                MDLabel:
+                    id: quota_label
+                    text: "0 / 500"
+                    halign: "center"
+                    font_name: app.fa_font
+                    font_style: "Caption"
+
+            MDBoxLayout:
+                adaptive_height: True
+                spacing: dp(12)
+
+                MDRaisedButton:
+                    id: start_btn
+                    text: "شروع ترجمه"
+                    font_name: app.fa_font
+                    size_hint_x: .6
+                    on_release: app.start_translation()
+
+                MDRaisedButton:
+                    text: "خروجی‌ها"
+                    font_name: app.fa_font
+                    size_hint_x: .4
+                    on_release: app.show_outputs_dialog()
+
+<KeysScreen>:
+    md_bg_color: app.theme_cls.backgroundColor
+
+    MDBoxLayout:
+        orientation: "vertical"
+
+        MDTopAppBar:
+            title: "کلیدهای API"
+            left_action_items: [["arrow-right", lambda x: app.go_main()]]
+
+        MDBoxLayout:
+            orientation: "vertical"
+            padding: dp(20)
+            spacing: dp(16)
+
+            MDTextField:
+                id: key_name
+                hint_text: "نام کلید"
+                mode: "rectangle"
+                font_name: app.fa_font
+
+            MDTextField:
+                id: key_value
+                hint_text: "کلید Gemini API"
+                mode: "rectangle"
+
+            MDRaisedButton:
+                text: "افزودن کلید"
+                font_name: app.fa_font
+                pos_hint: {"center_x": .5}
+                on_release: app.add_key()
+
+            MDLabel:
+                text: "کلیدهای ذخیره‌شده:"
+                font_name: app.fa_font
+                font_style: "Body2"
+                adaptive_height: True
+
+            ScrollView:
+                MDList:
+                    id: keys_list
+
+            MDTextField:
+                id: worker_url
+                hint_text: "آدرس Cloudflare Worker (اختیاری)"
+                mode: "rectangle"
+                on_text_validate: app.save_worker_url()
+
+<ProgressScreen>:
+    md_bg_color: app.theme_cls.backgroundColor
+
+    MDBoxLayout:
+        orientation: "vertical"
+
+        MDTopAppBar:
+            title: "در حال ترجمه"
+
+        MDBoxLayout:
+            orientation: "vertical"
+            padding: dp(24)
+            spacing: dp(20)
+            pos_hint: {"center_y": .5}
+
+            MDLabel:
+                id: prog_title
+                text: "در حال آماده‌سازی..."
+                halign: "center"
+                font_name: app.fa_font
+                font_style: "H6"
+
+            MDProgressBar:
+                id: prog_bar
+                value: 0
+
+            MDLabel:
+                id: prog_detail
+                text: ""
+                halign: "center"
+                font_name: app.fa_font
+                font_style: "Body2"
+
+            MDLabel:
+                id: prog_stats
+                text: ""
+                halign: "center"
+                font_name: app.fa_font
+                font_style: "Caption"
+"""
 
 
-class SettingsScreen(Screen):
-    """Settings screen for API keys and profiles"""
-    current_profile_name = StringProperty("")
-    auto_save_html = BooleanProperty(True)
-    auto_save_pdf = BooleanProperty(True)
-    theme_mode = StringProperty("dark")
-
-    def on_enter(self):
-        """Called when screen is entered"""
-        app = App.get_running_app()
-        profile = app.api_manager.get_default_api_key()
-        if profile:
-            key_stats = app.api_manager.get_key_stats(profile)
-            self.current_profile_name = key_stats['name'] if key_stats else "نامشخص"
+class MainScreen(MDScreen):
+    pass
 
 
-class ProgressScreen(Screen):
-    """Progress screen for translation"""
-    current_progress = NumericProperty(0)
-    total_progress = NumericProperty(0)
-    progress_value = NumericProperty(0)
-    progress_status = StringProperty("در حال انتظار...")
-    success_count = NumericProperty(0)
-    failed_count = NumericProperty(0)
-    skipped_count = NumericProperty(0)
+class KeysScreen(MDScreen):
+    pass
 
 
-class PDFTranslatorApp(App):
-    """Main application class"""
+class ProgressScreen(MDScreen):
+    pass
 
+
+class PDFTranslatorApp(MDApp):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-
-        # Initialize app components
         self.api_manager = APIManager()
         self.translation_manager = TranslationManager()
         self.output_manager = OutputManager()
 
-        # Translation state
-        self.current_pdf = None
-        self.current_structured_data = None
-        self.current_chunks = None
-        self.translation_engine = None
-        self.worker_translator = None
-        self.worker_url = "http://127.0.0.1:8787"
+        self.pdf_processor = None
+        self.structured = None
+        self.chunks = None
+
         self.is_translating = False
-        self.stop_translation_flag = False
+        self.stop_flag = False
+        self.progress_dialog = None
+
+        self.worker_url = self.api_manager.get_worker_url()
 
     def build(self):
-        """Build the application UI"""
-        # Configure theme
-        self.theme_cls.primary_palette = "DeepPurple"
-        self.theme_cls.accent_palette = "Orange"
+        self.title = "PDF Translator"
         self.theme_cls.theme_style = "Dark"
+        self.theme_cls.primary_palette = "DeepPurple"
 
-        # Create screen manager
-        self.sm = ScreenManager()
-
-        # Add screens
-        self.sm.add_widget(MainScreen(name='main'))
-        self.sm.add_widget(SettingsScreen(name='settings'))
-        self.sm.add_widget(ProgressScreen(name='progress'))
-
-        return self.sm
-
-    # Main Screen Methods
-    def open_pdf_dialog(self):
-        """Open file selection dialog"""
-        self.temp_pdf_path = ""
-
-    def on_pdf_path_set(self):
-        """Called when PDF path is set"""
-        if self.temp_pdf_path:
-            self.current_file = self.temp_pdf_path
-            self.load_pdf()
-
-    def load_pdf(self):
-        """Load PDF file"""
-        if not self.temp_pdf_path:
-            return
-
-        print(f"Loading PDF: {self.temp_pdf_path}")
-
-        processor = PDFProcessor(self.temp_pdf_path)
-        if processor.load_pdf():
-            self.current_pdf = processor
-            self.current_structured_data = processor.extract_text_with_structure()
-            self.current_chunks = self.translation_manager.create_chunks(self.current_structured_data)
-
-            # Update stats
-            stats = self.api_manager.get_stats()
-            self.daily_requests = stats['daily_requests']
-            self.daily_limit = stats['daily_limit']
-            self.tokens_used = stats['tokens_used']
-            self.tokens_limit = stats['tokens_limit']
-            self.usage_percent = stats['usage_percent']
-
-            print(f"PDF loaded successfully. {len(self.current_structured_data)} pages found.")
+        # Register Persian fonts
+        if os.path.exists(FONT_REG):
+            LabelBase.register(name="Vazirmatn", fn_regular=FONT_REG, fn_bold=FONT_BOLD)
+            self.fa_font = "Vazirmatn"
         else:
-            print("Failed to load PDF")
+            self.fa_font = "Roboto"
 
-    def start_translation(self):
-        """Start translation"""
-        if not self.current_structured_data:
-            print("Please load a PDF first")
-            return
+        return Builder.load_string(KV)
 
-        if not self.api_manager.get_default_api_key():
-            print("Please add an API key first")
-            return
+    def on_start(self):
+        self.refresh_quota()
+        self.refresh_keys()
+        wu = self.root.ids.keys_screen.ids.worker_url
+        if self.worker_url:
+            wu.text = self.worker_url
 
-        self.show_progress_screen()
-        self.is_translating = True
-        self.stop_translation_flag = False
+        # Android runtime storage permissions (for reading/saving files)
+        if platform == "android":
+            try:
+                from android.permissions import request_permissions, Permission
+                request_permissions([
+                    Permission.READ_EXTERNAL_STORAGE,
+                    Permission.WRITE_EXTERNAL_STORAGE,
+                ])
+            except Exception:
+                pass
 
-        # Run translation in background thread
-        thread = threading.Thread(target=self._run_translation)
-        thread.start()
+    # ---------- Persian text helper ----------
+    def P(self, text):
+        return fa(text)
 
-    def _run_translation(self):
-        """Run translation in background"""
-        self.translation_engine = TranslationEngine(self.api_manager, self.translation_manager)
-        self.worker_translator = None  # Not using worker for now
+    # ---------- Navigation ----------
+    def go_main(self):
+        self.root.current = "main"
 
-        translator = self.translation_engine
+    def go_keys(self):
+        self.refresh_keys()
+        self.root.current = "keys"
 
-        results = translator.translate_all(
-            self.current_chunks,
-            progress_callback=self._update_progress
+    def go_progress(self):
+        self.root.current = "progress"
+
+    # ---------- Quota display ----------
+    def refresh_quota(self, *args):
+        stats = self.api_manager.get_stats()
+        scr = self.root.ids.main_screen
+        scr.ids.quota_bar.max = stats["daily_limit"]
+        scr.ids.quota_bar.value = stats["daily_requests"]
+        scr.ids.quota_label.text = self.P(
+            f"{stats['daily_requests']} / {stats['daily_limit']} درخواست"
         )
 
-        self.success_count = results['success']
-        self.failed_count = results['failed']
-        self.skipped_count = results['skipped']
+    # ---------- File picker ----------
+    def open_file_picker(self):
+        if not hasattr(self, "file_manager"):
+            start_dir = "/sdcard" if platform == "android" else BASE_DIR
+            self.file_manager = MDFileManager(
+                exit_manager=self.close_file_picker,
+                select_path=self.pick_file,
+                ext=[".pdf", ".PDF"],
+                preview=False,
+            )
+            self.file_manager.show(start_dir)
+        else:
+            self.file_manager.show("/sdcard" if platform == "android" else BASE_DIR)
+        self.file_manager_open = True
 
-        # Sync translations back to page structure
-        self._sync_translations_to_structure()
+    def pick_file(self, path):
+        self.close_file_picker(path)
+        self.load_pdf(path)
+
+    def close_file_picker(self, *args):
+        self.file_manager_open = False
+        self.file_manager.close()
+
+    def load_pdf(self, path):
+        proc = PDFProcessor(path)
+        if not proc.load_pdf():
+            self.snack("بارگذاری PDF ناموفق بود")
+            return
+        self.pdf_processor = proc
+        self.structured = proc.extract_text_with_structure()
+        self.chunks = self.translation_manager.create_chunks(self.structured)
+        self.root.ids.main_screen.ids.file_label.text = self.P(
+            f"{Path(path).name}  •  {len(self.structured)} صفحه  •  {len(self.chunks)} بخش"
+        )
+        self.snack(f"بارگذاری شد: {len(self.structured)} صفحه")
+
+    # ---------- Translation ----------
+    def start_translation(self):
+        if self.is_translating:
+            return
+        if not self.structured:
+            self.snack("اول یک PDF انتخاب کنید")
+            return
+        if not self.api_manager.get_default_api_key():
+            self.snack("اول یک کلید API اضافه کنید")
+            return
+        if not self.api_manager.check_daily_limit():
+            self.snack("محدودیت روزانه رعایت شد؛ فردا دوباره امتحان کنید")
+            return
+
+        self.is_translating = True
+        self.stop_flag = False
+        self.go_progress()
+
+        worker_url = self.root.ids.keys_screen.ids.worker_url.text.strip()
+        use_worker = bool(worker_url)
+        threading.Thread(
+            target=self._translation_worker,
+            args=(use_worker,),
+            daemon=True
+        ).start()
+
+    def _translation_worker(self, use_worker):
+        engine = (
+            CloudflareWorkerTranslator(worker_url, self.api_manager)
+            if use_worker
+            else TranslationEngine(self.api_manager, self.translation_manager)
+        )
+
+        results = {"success": 0, "failed": 0, "skipped": 0}
+        total = len(self.chunks)
+
+        for i, chunk in enumerate(self.chunks):
+            if self.stop_flag:
+                break
+            if chunk.is_processed:
+                results["skipped"] += 1
+            else:
+                got = engine.translate_chunk(chunk)
+                if got:
+                    results["success"] += 1
+                else:
+                    results["failed"] += 1
+                    # rotate key on failure so next chunk uses another key
+                    if len(self.api_manager.get_api_keys()) > 1:
+                        self.api_manager.rotate_api_key()
+
+            Clock.schedule_once(
+                lambda dt, i=i, t=total, r=dict(results): self._update_progress(i + 1, t, r),
+                0
+            )
+
+        # Write translations back into page structure
+        for chunk in self.chunks:
+            if chunk.is_processed and chunk.translated_text:
+                pi = chunk.page_num - 1
+                if 0 <= pi < len(self.structured):
+                    blocks = self.structured[pi]["blocks"]
+                    if 0 <= chunk.block_index < len(blocks):
+                        blocks[chunk.block_index]["translated"] = chunk.translated_text
 
         self.translation_manager.save_cache()
+        Clock.schedule_once(lambda dt: self._translation_done(results), 0)
 
-        # Generate outputs
-        if self.html_output or self.pdf_output:
-            self.generate_outputs()
-
-        self.is_translating = False
-
-    def _sync_translations_to_structure(self):
-        """Write translated texts back into page structure"""
-        if not self.current_structured_data or not self.current_chunks:
+    def _update_progress(self, current, total, results):
+        if not self.root or self.root.current != "progress":
             return
-
-        for chunk in self.current_chunks:
-            if chunk.is_processed and chunk.translated_text:
-                page_index = chunk.page_num - 1
-                if 0 <= page_index < len(self.current_structured_data):
-                    blocks = self.current_structured_data[page_index]['blocks']
-                    if 0 <= chunk.block_index < len(blocks):
-                        blocks[chunk.block_index]['translated'] = chunk.translated_text
-
-    def _update_progress(self, current, total, status):
-        """Update progress"""
-        progress = (current / total) * 100
-        self.progress_value = progress
-        self.current_progress = current
-        self.total_progress = total
-        self.progress_status = status
-
-    def generate_outputs(self):
-        """Generate output files"""
-        output_format = "html" if self.html_output else "pdf"
-
-        outputs = self.output_manager.generate_outputs(
-            self.current_structured_data,
-            self.current_pdf.pdf_path,
-            output_format
+        scr = self.root.ids.progress_screen
+        pct = (current / total) * 100 if total else 0
+        scr.ids.prog_bar.value = pct
+        scr.ids.prog_title.text = self.P(f"{current} از {total} بخش")
+        scr.ids.prog_stats.text = self.P(
+            f"موفق: {results['success']}   ناموفق: {results['failed']}   تکراری: {results['skipped']}"
+        )
+        scr.ids.prog_detail.text = self.P(
+            "از طریق Cloudflare Worker" if self.root.ids.keys_screen.ids.worker_url.text.strip()
+            else "اتصال مستقیم به Gemini"
         )
 
-        print(f"Output generated: {outputs}")
+    def _translation_done(self, results):
+        self.is_translating = False
+        self.refresh_quota()
+        # Generate outputs
+        outputs = self.output_manager.generate_outputs(
+            self.structured,
+            self.pdf_processor.pdf_path,
+            "pdf"
+        )
+        self.outputs = outputs
+        msg = self.P(
+            f"تمام شد! موفق: {results['success']} | ناموفق: {results['failed']}"
+        )
+        self.show_outputs_dialog(done_msg=msg)
+        self.go_main()
 
-    def stop_translation(self):
-        """Stop translation"""
-        self.stop_translation_flag = True
+    def show_outputs_dialog(self, done_msg=None):
+        files = getattr(self, "outputs", None)
+        if not files:
+            files = {}
+        lines = done_msg or ""
+        for k, v in files.items():
+            lines += f"\n{k.upper()}: {v}"
+        self.dialog = MDDialog(
+            title=self.P("خروجی‌ها"),
+            text=self.P(lines),
+            buttons=[
+                MDRaisedButton(
+                    text=self.P("بستن"),
+                    font_name=self.fa_font,
+                    on_release=lambda x: self.dialog.dismiss()
+                )
+            ]
+        )
+        self.dialog.open()
 
-    # Settings Screen Methods
-    def add_api_key_dialog(self):
-        """Open add API key dialog"""
-        name = self.root.ids.dialog_key_name.text
-        api_key = self.root.ids.dialog_key_api.text
-
-        if name and api_key:
-            if self.api_manager.add_api_key(name, api_key):
-                self.api_manager.set_default_api_key(api_key)
-                self.refresh_api_keys_list()
-                self.root.ids.dialog_key_name.text = ""
-                self.root.ids.dialog_key_api.text = ""
-
-    def confirm_add_api_key(self):
-        """Confirm add API key"""
-        name = self.root.ids.dialog_key_name.text
-        api_key = self.root.ids.dialog_key_api.text
-
-        if name and api_key:
-            if self.api_manager.add_api_key(name, api_key):
-                self.api_manager.set_default_api_key(api_key)
-                self.refresh_api_keys_list()
-                self.current_profile_name = name
-                self.root.ids.dialog_key_name.text = ""
-                self.root.ids.dialog_key_api.text = ""
-
-    def refresh_api_keys_list(self):
-        """Refresh API keys list"""
+    # ---------- API keys ----------
+    def refresh_keys(self):
         try:
-            settings_screen = self.root.get_screen('settings')
-            list_widget = settings_screen.ids.api_keys_list
+            lst = self.root.ids.keys_screen.ids.keys_list
         except Exception:
             return
-
-        # Clear list
-        list_widget.clear_widgets()
-
-        # Add keys
+        lst.clear_widgets()
+        default = self.api_manager.get_default_api_key()
         for key in self.api_manager.get_api_keys():
-            label = f"{key['name']}"
-            if key.get('is_default'):
+            label = key["name"]
+            if key.get("api_key") == default:
                 label += " (پیش‌فرض)"
-            item = OneLineListItem(text=label)
-            item.api_key_value = key['api_key']
-            item.bind(on_release=self._on_key_item_release)
-            list_widget.add_widget(item)
+            item = OneLineListItem(
+                text=self.P(label),
+                on_release=lambda x, k=key["api_key"]: self._select_key(k)
+            )
+            lst.add_widget(item)
 
-    def _on_key_item_release(self, item):
-        """Called when an API key list item is pressed"""
-        self.select_profile(item.api_key_value)
-
-    def select_profile(self, api_key):
-        """Select profile"""
+    def _select_key(self, api_key):
         self.api_manager.set_default_api_key(api_key)
-        stats = self.api_manager.get_key_stats(api_key)
-        self.current_profile_name = stats['name'] if stats else "نامشخص"
+        self.refresh_keys()
+        self.snack("کلید پیش‌فرض تغییر کرد")
 
-    # Screen Navigation
-    def show_progress_screen(self):
-        """Show progress screen"""
-        screen = self.sm.get_screen('progress')
-        screen.current_progress = 0
-        screen.total_progress = len(self.current_chunks) if self.current_chunks else 0
-        screen.progress_value = 0
-        screen.progress_status = "در حال انتظار..."
-        screen.success_count = 0
-        screen.failed_count = 0
-        screen.skipped_count = 0
-        self.sm.current = 'progress'
+    def add_key(self):
+        scr = self.root.ids.keys_screen
+        name = scr.ids.key_name.text.strip()
+        value = scr.ids.key_value.text.strip()
+        if not name or not value:
+            self.snack("نام و کلید را وارد کنید")
+            return
+        if self.api_manager.add_api_key(name, value):
+            if not self.api_manager.get_default_api_key():
+                self.api_manager.set_default_api_key(value)
+            scr.ids.key_name.text = ""
+            scr.ids.key_value.text = ""
+            self.refresh_keys()
+            self.snack("کلید اضافه شد")
+            self.refresh_quota()
 
-    def show_settings_screen(self):
-        """Show settings screen"""
-        self.sm.current = 'settings'
+    def save_worker_url(self):
+        url = self.root.ids.keys_screen.ids.worker_url.text.strip()
+        self.api_manager.save_worker_url(url)
+        self.worker_url = url
+        self.snack("آدرس Worker ذخیره شد" if url else "Worker غیرفعال شد")
 
-    def show_main_screen(self):
-        """Show main screen"""
-        self.sm.current = 'main'
-
-    # Utility Methods
-    def toggle_html_output(self, value):
-        """Toggle HTML output"""
-        self.html_output = value
-
-    def toggle_pdf_output(self, value):
-        """Toggle PDF output"""
-        self.pdf_output = value
-
-    def toggle_auto_save_html(self, value):
-        """Toggle auto save HTML"""
-        self.auto_save_html = value
-
-    def toggle_auto_save_pdf(self, value):
-        """Toggle auto save PDF"""
-        self.auto_save_pdf = value
+    # ---------- UI helpers ----------
+    def snack(self, text):
+        MDSnackbar(text=self.P(text)).open()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     PDFTranslatorApp().run()

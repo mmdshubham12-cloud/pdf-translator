@@ -93,6 +93,16 @@ class APIManager:
         except Exception as e:
             print(f"❌ Khata dar zakhire amar: {e}")
 
+    def get_worker_url(self) -> Optional[str]:
+        """Get saved Cloudflare Worker URL"""
+        return self.config.get("worker_url")
+
+    def save_worker_url(self, url: str):
+        """Save Cloudflare Worker URL (empty string disables it)"""
+        with self.lock:
+            self.config["worker_url"] = url.strip()
+            self._save_config()
+
     def get_api_keys(self) -> List[Dict]:
         """Get all API keys"""
         with self.lock:

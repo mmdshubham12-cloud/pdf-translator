@@ -6,6 +6,7 @@ Main application entry point
 """
 
 import sys
+import os
 from pathlib import Path
 
 # Add parent directory to path for imports
@@ -17,8 +18,12 @@ from translator import TranslationEngine, CloudflareWorkerTranslator
 from output_generator import OutputManager
 
 
+def is_android():
+    return "ANDROID_ARGUMENT" in os.environ or "ANDROID_DATA" in os.environ
+
+
 class PDFTranslatorApp:
-    """Main application class"""
+    """CLI application class (desktop terminal mode)"""
 
     def __init__(self):
         self.api_manager = APIManager()
@@ -32,25 +37,19 @@ class PDFTranslatorApp:
         self.worker_url = "http://127.0.0.1:8787"  # Cloudflare Worker URL
 
     def initialize(self):
-        """Initialize application components"""
         print("🚀 Shoro rah-andazi PDF Translator...")
 
-        # Initialize translation engine
         self.translation_engine = TranslationEngine(
             self.api_manager,
             self.translation_manager
         )
-
-        # Initialize worker translator
         self.worker_translator = CloudflareWorkerTranslator(
             self.worker_url,
             self.api_manager
         )
-
         print("✅ Rah-andazi ba movafaghiat anjam shod")
 
     def load_pdf(self, pdf_path: str) -> bool:
-        """Load PDF file"""
         print(f"\n📂 Bargozari PDF: {pdf_path}")
 
         processor = PDFProcessor(pdf_path)
@@ -66,7 +65,6 @@ class PDFTranslatorApp:
         return True
 
     def _sync_translations_to_structure(self):
-        """Write translated texts back into page structure for output generation"""
         if not self.current_structured_data or not self.current_chunks:
             return
 
@@ -79,17 +77,13 @@ class PDFTranslatorApp:
                         blocks[chunk.block_index]['translated'] = chunk.translated_text
 
     def translate_pdf(self, use_worker: bool = False):
-        """Translate PDF content"""
         if not self.current_structured_data:
             print("❌ PDF bargozari nashode ast")
             return
 
         print(f"\n🔄 Shoro tarjome ({len(self.current_chunks)} bakhsh)...")
 
-        # Use appropriate translator
         translator = self.worker_translator if use_worker else self.translation_engine
-
-        # Translate all chunks
         results = translator.translate_all(self.current_chunks, progress_callback=self._update_progress)
 
         print(f"\n📊 Khulase tarjome:")
@@ -97,12 +91,10 @@ class PDFTranslatorApp:
         print(f"   ❌ Namovafagh: {results['failed']}")
         print(f"   ⏭️  Tekrari: {results['skipped']}")
 
-        # Sync translations to page structure and save cache
         self._sync_translations_to_structure()
         self.translation_manager.save_cache()
 
     def generate_outputs(self, output_format: str = "pdf"):
-        """Generate output files"""
         if not self.current_structured_data:
             print("❌ Dadei baraye tolid vojood nadarad")
             return
@@ -120,12 +112,10 @@ class PDFTranslatorApp:
             print(f"   {format_type.upper()}: {path}")
 
     def _update_progress(self, current: int, total: int, status: str):
-        """Update progress callback"""
         percent = (current / total) * 100
         print(f"   [{current}/{total}] {percent:.1f}% - {status}")
 
     def get_stats(self) -> dict:
-        """Get application statistics"""
         return {
             "api_stats": self.api_manager.get_stats(),
             "translation_stats": {
@@ -135,24 +125,29 @@ class PDFTranslatorApp:
         }
 
     def add_api_key(self, name: str, api_key: str) -> bool:
-        """Add API key"""
         return self.api_manager.add_api_key(name, api_key)
 
     def set_default_api_key(self, api_key: str) -> bool:
-        """Set default API key"""
         return self.api_manager.set_default_api_key(api_key)
 
     def get_api_keys(self):
-        """Get API keys"""
         return self.api_manager.get_api_keys()
 
     def rotate_api_key(self) -> str:
-        """Rotate to next API key"""
         return self.api_manager.rotate_api_key()
 
 
 def main():
-    """Main entry point"""
+    """Main entry point - on Android run the GUI, otherwise run the CLI."""
+    if is_android() or "--gui" in sys.argv:
+        try:
+            from app import PDFTranslatorApp
+            PDFTranslatorApp().run()
+            return
+        except ImportError:
+            print("Kivy/KivyMD nist -> CLI mode")
+
+
     print("="*60)
     print("🚀 PDF Translator with Gemini 3.5 Flash")
     print("="*60)
