@@ -18,7 +18,8 @@ class TranslationEngine:
     def __init__(self, api_manager: APIManager, translation_manager: TranslationManager):
         self.api_manager = api_manager
         self.translation_manager = translation_manager
-        self.gemini_url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
+        self.model_name = "gemini-3.5-flash"
+        self.gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model_name}:generateContent"
 
     def translate_chunk(self, chunk: TranslationChunk) -> Optional[str]:
         """Translate a single text chunk"""
@@ -39,7 +40,12 @@ class TranslationEngine:
             return None
 
         # Prepare request
-        prompt = f"Translate the following text to Persian:\n\n{chunk.text}"
+        prompt = (
+            "You are a professional translator. Translate the following text to "
+            "fluent, natural Persian (Farsi). Keep formatting, bold markers and "
+            "meaning exactly. Only output the translation:\n\n"
+            f"{chunk.text}"
+        )
 
         try:
             # Record request
@@ -50,7 +56,7 @@ class TranslationEngine:
             # Make request to Gemini API
             headers = {
                 "Content-Type": "application/json",
-                "Authorization": f"Bearer {api_key}"
+                "x-goog-api-key": api_key
             }
 
             data = {
@@ -86,7 +92,6 @@ class TranslationEngine:
                 return translated_text
             else:
                 print(f"❌ خطا در ترجمه: {response.status_code}")
-                print(f"Response: {response.text}")
 
                 # Rotate API key on error
                 self.api_manager.rotate_api_key()
@@ -129,40 +134,16 @@ class TranslationEngine:
 
         return results
 
-    def translate_page(self, page_data: Dict) -> str:
-        """Translate a page with all blocks"""
-        page_num = page_data['page_num']
-        blocks = page_data['blocks']
-
-        translated_text = f"\n--- صفحه {page_num + 1} ---\n\n"
-
-        for i, block in enumerate(blocks):
-            chunk = TranslationChunk(
-                text=block['text'],
-                page_num=page_num,
-                block_index=i
-            )
-
-            translated = self.translate_chunk(chunk)
-
-            if translated:
-                translated_text += translated + "\n\n"
-            else:
-                translated_text += block['text'] + "\n\n"
-
-        return translated_text
-
 
 class CloudflareWorkerTranslator:
     """Translation using Cloudflare Worker proxy"""
 
     def __init__(self, worker_url: str, api_manager: APIManager):
-        self.worker_url = worker_url
+        self.worker_url = worker_url.rstrip('/')
         self.api_manager = api_manager
-        self.gemini_url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
 
-    def translate_with_worker(self, text: str) -> Optional[str]:
-        """Translate using Cloudflare Worker"""
+    def translate_chunk(self, chunk: TranslationChunk) -> Optional[str]:
+        """Translate a single chunk through the Cloudflare Worker"""
         api_key = self.api_manager.get_default_api_key()
 
         if not api_key:
@@ -177,37 +158,68 @@ class CloudflareWorkerTranslator:
             print("⚠️  محدودیت روزانه رعایت شد")
             return None
 
+        prompt = (
+            "You are a professional translator. Translate the following text to "
+            "fluent, natural Persian (Farsi). Keep formatting, bold markers and "
+            "meaning exactly. Only output the translation:\n\n"
+            f"{chunk.text}"
+        )
+
         try:
-            # Prepare request
-            tokens_used = len(text) // 4
+            tokens_used = len(prompt) // 4
             if not self.api_manager.record_request(api_key, tokens_used):
                 return None
 
-            # Make request via worker
-            headers = {
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {api_key}"
-            }
-
-            data = {
-                "text": text,
-                "apiKey": api_key
-            }
-
             response = requests.post(
                 f"{self.worker_url}/translate",
-                headers=headers,
-                json=data,
+                json={
+                    "text": prompt,
+                    "apiKey": api_key,
+                    "model": "gemini-3.5-flash"
+                },
                 timeout=60
             )
 
             if response.status_code == 200:
                 result = response.json()
-                return result.get("translated_text", "")
-            else:
-                print(f"❌ خطا در ترجمه: {response.status_code}")
-                return None
+                translated_text = (
+                    result.get("translated_text")
+                    or result.get("candidates", [{}])[0]
+                    .get("content", {}).get("parts", [{}])[0].get("text", "")
+                )
+
+                if translated_text:
+                    chunk.translated_text = translated_text
+                    chunk.is_processed = True
+                    chunk.translation_time = time.time()
+                    return translated_text
+
+            print(f"❌ خطا در ترجمه: {response.status_code}")
+            return None
 
         except Exception as e:
             print(f"❌ خطای ترجمه: {e}")
             return None
+
+    def translate_all(self, chunks: List[TranslationChunk], progress_callback=None) -> Dict[str, int]:
+        """Translate all chunks"""
+        results = {"success": 0, "failed": 0, "skipped": 0}
+
+        for i, chunk in enumerate(chunks):
+            if chunk.is_processed:
+                results["skipped"] += 1
+                if progress_callback:
+                    progress_callback(i + 1, len(chunks), "تکراری")
+                continue
+
+            translated = self.translate_chunk(chunk)
+            if translated:
+                results["success"] += 1
+                if progress_callback:
+                    progress_callback(i + 1, len(chunks), "موفق")
+            else:
+                results["failed"] += 1
+                if progress_callback:
+                    progress_callback(i + 1, len(chunks), "ناموفق")
+
+        return results

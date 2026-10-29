@@ -7,7 +7,6 @@ Creates translated outputs with preserved structure
 
 from pathlib import Path
 from typing import List, Dict
-import re
 
 
 class HTMLGenerator:
@@ -84,19 +83,6 @@ class HTMLGenerator:
             color: #333;
         }}
 
-        .bullet {{
-            list-style-type: disc;
-            margin-right: 20px;
-        }}
-
-        .heading {{
-            font-size: 1.5em;
-            font-weight: bold;
-            color: #667eea;
-            margin: 20px 0 10px 0;
-            text-align: center;
-        }}
-
         @media print {{
             body {{
                 background: white;
@@ -112,37 +98,41 @@ class HTMLGenerator:
 </head>
 <body>
     <div class="container">
-        <h1>📄 ترجمه PDF با Gemini 3.5 Flash</h1>
+        <h1>📄 ترجمه PDF با Gemini</h1>
         {content}
     </div>
 </body>
 </html>"""
 
-    def generate(self, structured_data: List[Dict]) -> str:
-        """Generate HTML from structured data"""
+    def generate(self, structured_data: List[Dict], use_translated: bool = True) -> str:
+        """Generate HTML from structured data."""
         content = ""
 
         for page in structured_data:
-            content += self._generate_page(page)
+            content += self._generate_page(page, use_translated)
 
         return self.html_template.format(content=content)
 
-    def _generate_page(self, page_data: Dict) -> str:
+    def _generate_page(self, page_data: Dict, use_translated: bool) -> str:
         """Generate HTML for a single page"""
         page_num = page_data['page_num']
         blocks = page_data['blocks']
 
-        page_html = f'<div class="page">\n'
-
-        # Page header
+        page_html = '<div class="page">\n'
         page_html += f'    <div class="page-header">صفحه {page_num}</div>\n'
 
-        # Generate blocks
         for block in blocks:
-            if block.get('is_bold'):
-                page_html += f'    <div class="paragraph bold">{block["text"]}</div>\n'
+            if use_translated and block.get('translated'):
+                text = block['translated']
             else:
-                page_html += f'    <div class="paragraph">{block["text"]}</div>\n'
+                text = block['text']
+            import html as html_module
+            text = html_module.escape(text)
+
+            if block.get('is_bold'):
+                page_html += f'    <div class="paragraph bold">{text}</div>\n'
+            else:
+                page_html += f'    <div class="paragraph">{text}</div>\n'
 
         page_html += '</div>\n'
         return page_html
@@ -159,68 +149,56 @@ class HTMLGenerator:
 
 
 class PDFGenerator:
-    """Generate PDF output with preserved structure"""
+    """Generate PDF output using fpdf2 (works on Pydroid 3)"""
 
     def __init__(self):
         try:
             from fpdf import FPDF
             self.FPDF = FPDF
         except ImportError:
-            print("⚠️  فایل FPDF نصب نیست. لطفاً نصب کنید: pip install fpdf2")
+            print("⚠️  fpdf2 نصب نیست. نصب کنید: pip install fpdf2")
             self.FPDF = None
 
-    def generate(self, structured_data: List[Dict], html_path: str, pdf_path: str):
-        """Generate PDF from structured data"""
+    def generate(self, structured_data: List[Dict], pdf_path: str) -> bool:
+        """Generate PDF directly from structured data (translated text)"""
         if not self.FPDF:
-            print("❌ FPDF نصب نیست")
+            print("❌ fpdf2 نصب نیست")
             return False
 
         try:
-            pdf = self.FPDF()
+            pdf = self.FPDF(orientation='P', unit='mm', format='A4')
+            pdf.set_auto_page_break(auto=True, margin=15)
             pdf.add_page()
 
-            # Add title
-            pdf.set_font('Arial', 'B', 16)
-            pdf.cell(0, 10, 'ترجمه PDF با Gemini 3.5 Flash', 0, 1, 'C')
+            # Title
+            pdf.set_font('helvetica', 'B', 16)
+            pdf.cell(0, 10, 'PDF Translator', 0, 1, 'C')
+            pdf.ln(5)
 
             for page in structured_data:
-                pdf.ln(10)
-                pdf.set_font('Arial', 'B', 12)
-                pdf.cell(0, 10, f'صفحه {page["page_num"]}', 0, 1, 'C')
+                pdf.set_font('helvetica', 'B', 12)
+                pdf.cell(0, 10, f'Page {page["page_num"]}', 0, 1, 'C')
+                pdf.ln(2)
 
                 for block in page['blocks']:
-                    pdf.set_font('Arial', '', 11)
-                    pdf.cell(0, 7, block['text'], 0, 1)
+                    text = block.get('translated') or block['text']
+                    # fpdf2 core fonts can't render Persian/Arabic or Unicode.
+                    # Encode to latin-1 fallback so it does not crash.
+                    safe_text = text.encode('latin-1', errors='replace').decode('latin-1')
+
+                    if block.get('is_bold'):
+                        pdf.set_font('helvetica', 'B', 11)
+                    else:
+                        pdf.set_font('helvetica', '', 11)
+
+                    pdf.multi_cell(0, 7, safe_text)
+                    pdf.ln(2)
 
             pdf.output(pdf_path)
             return True
 
         except Exception as e:
             print(f"❌ خطا در تولید PDF: {e}")
-            return False
-
-    def save(self, html_content: str, pdf_path: str):
-        """Save HTML content to PDF"""
-        if not self.FPDF:
-            print("❌ FPDF نصب نیست")
-            return False
-
-        try:
-            # Read HTML
-            with open(pdf_path.replace('.pdf', '.html'), 'w', encoding='utf-8') as f:
-                f.write(html_content)
-
-            # Convert to PDF using weasyprint (if available)
-            try:
-                from weasyprint import HTML
-                HTML(string=html_content).write_pdf(pdf_path)
-                return True
-            except ImportError:
-                print("⚠️  weasyprint نصب نیست. فقط HTML ذخیره شد.")
-                return True
-
-        except Exception as e:
-            print(f"❌ خطا در ذخیره PDF: {e}")
             return False
 
 
@@ -238,17 +216,16 @@ class OutputManager:
         outputs = {}
 
         # Generate HTML
-        html_content = self.html_generator.generate(structured_data)
-
         if output_format in ["html", "pdf"]:
+            html_content = self.html_generator.generate(structured_data, use_translated=True)
             html_path = self.output_dir / f"{Path(input_file).stem}_translated.html"
             if self.html_generator.save(html_content, str(html_path)):
                 outputs["html"] = str(html_path)
 
-        # Generate PDF
+        # Generate PDF directly with fpdf2 (no weasyprint dependency)
         if output_format == "pdf":
             pdf_path = self.output_dir / f"{Path(input_file).stem}_translated.pdf"
-            if self.pdf_generator.generate(structured_data, str(html_path), str(pdf_path)):
+            if self.pdf_generator.generate(structured_data, str(pdf_path)):
                 outputs["pdf"] = str(pdf_path)
 
         return outputs

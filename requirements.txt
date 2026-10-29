@@ -1,7 +1,7 @@
 kivy==2.3.0
 kivy-garden==0.1.4
 kivymd==0.3.14
-PyMuPDF==1.23.8
+pdfplumber==0.10.3
 requests==2.31.0
 Pillow==10.1.0
 pyyaml==6.0.1

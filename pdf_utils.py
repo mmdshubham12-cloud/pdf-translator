@@ -5,9 +5,9 @@ PDF Utility Functions for PDF Translator
 Handles PDF processing, structure preservation, and text extraction
 """
 
-import fitz  # PyMuPDF
+import pdfplumber
 from pathlib import Path
-from typing import List, Dict, Tuple
+from typing import List, Dict
 import re
 
 
@@ -16,22 +16,24 @@ class PDFProcessor:
 
     def __init__(self, pdf_path: str):
         self.pdf_path = pdf_path
-        self.doc = None
         self.pages = []
 
     def load_pdf(self) -> bool:
         """Load PDF file"""
         try:
-            self.doc = fitz.open(self.pdf_path)
-            self.pages = []
-            for page_num in range(len(self.doc)):
-                page = self.doc[page_num]
-                self.pages.append({
-                    'page_num': page_num,
-                    'text': page.get_text(),
-                    'blocks': self._extract_blocks(page)
-                })
-            return True
+            with pdfplumber.open(self.pdf_path) as pdf:
+                self.pages = []
+                for page_num, page in enumerate(pdf.pages):
+                    # Extract text with layout information
+                    text = page.extract_text()
+                    blocks = self._extract_blocks(page)
+
+                    self.pages.append({
+                        'page_num': page_num,
+                        'text': text or "",
+                        'blocks': blocks
+                    })
+                return True
         except Exception as e:
             print(f"❌ خطا در لود PDF: {e}")
             return False
@@ -39,21 +41,60 @@ class PDFProcessor:
     def _extract_blocks(self, page) -> List[Dict]:
         """Extract text blocks with formatting"""
         blocks = []
-        blocks_text = page.get_text("blocks")
 
-        for block in blocks_text:
-            if block[4] == 0:  # text block
-                block_data = {
-                    'x0': block[0],
-                    'y0': block[1],
-                    'x1': block[2],
-                    'y1': block[3],
-                    'text': block[4].strip(),
-                    'font': block[5],
-                    'size': block[6],
-                    'flags': block[7]
+        # Extract words with positions
+        # pdfplumber uses 'top'/'bottom' keys (not y0/y1 like PyMuPDF).
+        # extra_attrs pulls fontname/size per word when supported.
+        try:
+            words = page.extract_words(extra_attrs=["fontname", "size"])
+        except TypeError:
+            words = page.extract_words()
+
+        if not words:
+            return blocks
+
+        # Group words into blocks based on position
+        current_block = None
+
+        for word in words:
+            x0 = word['x0']
+            y0 = word['top']
+            x1 = word['x1']
+            y1 = word['bottom']
+            text = word['text']
+            fontname = word.get('fontname', 'Helvetica')
+            size = word.get('size', 12)
+
+            # Detect bold from font name (e.g. Helvetica-Bold, Arial-BoldMT)
+            is_bold = 'bold' in str(fontname).lower() or 'black' in str(fontname).lower()
+
+            # Check if this is a new block (vertical gap larger than a line)
+            if current_block is None or (y0 - current_block['y1']) > 6:
+                if current_block is not None:
+                    blocks.append(current_block)
+
+                current_block = {
+                    'x0': x0,
+                    'y0': y0,
+                    'x1': x1,
+                    'y1': y1,
+                    'text': text,
+                    'font': fontname,
+                    'size': size,
+                    'is_bold': is_bold
                 }
-                blocks.append(block_data)
+            else:
+                # Add to current block
+                current_block['text'] += ' ' + text
+                current_block['x0'] = min(current_block['x0'], x0)
+                current_block['x1'] = max(current_block['x1'], x1)
+                current_block['y1'] = max(current_block['y1'], y1)
+                # If any word in the block is bold, mark the whole block bold
+                current_block['is_bold'] = current_block['is_bold'] or is_bold
+
+        # Add last block
+        if current_block:
+            blocks.append(current_block)
 
         return blocks
 
@@ -90,7 +131,7 @@ class PDFProcessor:
                         'x1': block['x1'],
                         'y1': block['y1'],
                         'text': block['text'],
-                        'is_bold': bool(block['flags'] & 0x02)  # Bold flag
+                        'is_bold': block.get('is_bold', False)
                     }
                     page_data['blocks'].append(block_data)
 
@@ -113,18 +154,8 @@ class PDFProcessor:
     def process_images(self, page) -> List[Dict]:
         """Extract images from page"""
         images = []
-        image_list = page.get_images(full=True)
-
-        for img_index, img in enumerate(image_list):
-            xref = img[0]
-            base_image = self.doc.extract_image(xref)
-            image_data = {
-                'xref': xref,
-                'image': base_image,
-                'ext': base_image['ext']
-            }
-            images.append(image_data)
-
+        # pdfplumber doesn't extract images directly
+        # This is a placeholder for future implementation
         return images
 
     def save_page(self, page_num: int, text: str, output_path: str):
@@ -141,8 +172,7 @@ class PDFProcessor:
 
     def close(self):
         """Close PDF document"""
-        if self.doc:
-            self.doc.close()
+        pass  # pdfplumber handles this automatically
 
 
 class PDFStructureParser:

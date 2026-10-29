@@ -6,7 +6,6 @@ Main application entry point
 """
 
 import sys
-import os
 from pathlib import Path
 
 # Add parent directory to path for imports
@@ -14,9 +13,8 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from pdf_utils import PDFProcessor, TranslationManager
 from api_manager import APIManager
-from translator import TranslationEngine
+from translator import TranslationEngine, CloudflareWorkerTranslator
 from output_generator import OutputManager
-import threading
 
 
 class PDFTranslatorApp:
@@ -67,6 +65,19 @@ class PDFTranslatorApp:
         print(f"✅ PDF بارگذاری شد. {len(self.current_structured_data)} صفحه یافت شد.")
         return True
 
+    def _sync_translations_to_structure(self):
+        """Write translated texts back into page structure for output generation"""
+        if not self.current_structured_data or not self.current_chunks:
+            return
+
+        for chunk in self.current_chunks:
+            if chunk.is_processed and chunk.translated_text:
+                page_index = chunk.page_num - 1
+                if 0 <= page_index < len(self.current_structured_data):
+                    blocks = self.current_structured_data[page_index]['blocks']
+                    if 0 <= chunk.block_index < len(blocks):
+                        blocks[chunk.block_index]['translated'] = chunk.translated_text
+
     def translate_pdf(self, use_worker: bool = False):
         """Translate PDF content"""
         if not self.current_structured_data:
@@ -86,7 +97,8 @@ class PDFTranslatorApp:
         print(f"   ❌ ناموفق: {results['failed']}")
         print(f"   ⏭️  تکراری: {results['skipped']}")
 
-        # Save cache
+        # Sync translations to page structure and save cache
+        self._sync_translations_to_structure()
         self.translation_manager.save_cache()
 
     def generate_outputs(self, output_format: str = "pdf"):

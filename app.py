@@ -18,8 +18,11 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from pdf_utils import PDFProcessor, TranslationManager
 from api_manager import APIManager
-from translator import TranslationEngine
+from translator import TranslationEngine, CloudflareWorkerTranslator
 from output_generator import OutputManager
+
+# OneLineListItem imported from kivymd
+from kivymd.uix.list import OneLineListItem
 
 
 class MainScreen(Screen):
@@ -169,7 +172,9 @@ class PDFTranslatorApp(App):
         self.translation_engine = TranslationEngine(self.api_manager, self.translation_manager)
         self.worker_translator = None  # Not using worker for now
 
-        results = self.translation_engine.translate_all(
+        translator = self.translation_engine
+
+        results = translator.translate_all(
             self.current_chunks,
             progress_callback=self._update_progress
         )
@@ -178,6 +183,9 @@ class PDFTranslatorApp(App):
         self.failed_count = results['failed']
         self.skipped_count = results['skipped']
 
+        # Sync translations back to page structure
+        self._sync_translations_to_structure()
+
         self.translation_manager.save_cache()
 
         # Generate outputs
@@ -185,6 +193,19 @@ class PDFTranslatorApp(App):
             self.generate_outputs()
 
         self.is_translating = False
+
+    def _sync_translations_to_structure(self):
+        """Write translated texts back into page structure"""
+        if not self.current_structured_data or not self.current_chunks:
+            return
+
+        for chunk in self.current_chunks:
+            if chunk.is_processed and chunk.translated_text:
+                page_index = chunk.page_num - 1
+                if 0 <= page_index < len(self.current_structured_data):
+                    blocks = self.current_structured_data[page_index]['blocks']
+                    if 0 <= chunk.block_index < len(blocks):
+                        blocks[chunk.block_index]['translated'] = chunk.translated_text
 
     def _update_progress(self, current, total, status):
         """Update progress"""
@@ -213,52 +234,53 @@ class PDFTranslatorApp(App):
     # Settings Screen Methods
     def add_api_key_dialog(self):
         """Open add API key dialog"""
-        dialog_key_name = self.root.ids.settings.ids.dialog_key_name
-        dialog_key_api = self.root.ids.settings.ids.dialog_key_api
-
-        name = dialog_key_name.text
-        api_key = dialog_key_api.text
+        name = self.root.ids.dialog_key_name.text
+        api_key = self.root.ids.dialog_key_api.text
 
         if name and api_key:
             if self.api_manager.add_api_key(name, api_key):
                 self.api_manager.set_default_api_key(api_key)
                 self.refresh_api_keys_list()
-                dialog_key_name.text = ""
-                dialog_key_api.text = ""
-
-    def change_profile_dialog(self):
-        """Open change profile dialog"""
-        self.refresh_api_keys_list()
+                self.root.ids.dialog_key_name.text = ""
+                self.root.ids.dialog_key_api.text = ""
 
     def confirm_add_api_key(self):
         """Confirm add API key"""
-        dialog_key_name = self.root.ids.settings.ids.dialog_key_name
-        dialog_key_api = self.root.ids.settings.ids.dialog_key_api
-
-        name = dialog_key_name.text
-        api_key = dialog_key_api.text
+        name = self.root.ids.dialog_key_name.text
+        api_key = self.root.ids.dialog_key_api.text
 
         if name and api_key:
             if self.api_manager.add_api_key(name, api_key):
                 self.api_manager.set_default_api_key(api_key)
                 self.refresh_api_keys_list()
                 self.current_profile_name = name
-                dialog_key_name.text = ""
-                dialog_key_api.text = ""
+                self.root.ids.dialog_key_name.text = ""
+                self.root.ids.dialog_key_api.text = ""
 
     def refresh_api_keys_list(self):
         """Refresh API keys list"""
-        api_keys = self.api_manager.get_api_keys()
-        list_widget = self.root.ids.settings.ids.api_keys_list
+        try:
+            settings_screen = self.root.get_screen('settings')
+            list_widget = settings_screen.ids.api_keys_list
+        except Exception:
+            return
 
         # Clear list
         list_widget.clear_widgets()
 
         # Add keys
-        for key in api_keys:
-            OneLineListItem:
-                text: f"{key['name']} {'(پیش‌فرض)' if key['is_default'] else ''}"
-                on_release: self.select_profile(key['api_key'])
+        for key in self.api_manager.get_api_keys():
+            label = f"{key['name']}"
+            if key.get('is_default'):
+                label += " (پیش‌فرض)"
+            item = OneLineListItem(text=label)
+            item.api_key_value = key['api_key']
+            item.bind(on_release=self._on_key_item_release)
+            list_widget.add_widget(item)
+
+    def _on_key_item_release(self, item):
+        """Called when an API key list item is pressed"""
+        self.select_profile(item.api_key_value)
 
     def select_profile(self, api_key):
         """Select profile"""
