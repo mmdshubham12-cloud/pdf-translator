@@ -51,3 +51,4 @@ api_stats.json
 
 # Temporary files
 *.tmp
+keystore.jks
