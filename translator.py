@@ -26,17 +26,17 @@ class TranslationEngine:
         api_key = self.api_manager.get_default_api_key()
 
         if not api_key:
-            print("❌ هیچ کلید API تنظیم نشده است")
+            print("❌ Hich kelid API tanzim nashode ast")
             return None
 
         # Check rate limit
         if not self.api_manager.check_rate_limit():
-            print("⚠️  محدودیت نرخ درخواست رعایت شد")
+            print("⚠️  Mahdoodiate nerkhe darkhast raayat shod")
             return None
 
         # Check daily limit
         if not self.api_manager.check_daily_limit():
-            print("⚠️  محدودیت روزانه رعایت شد")
+            print("⚠️  Mahdoodiate roozane raayat shod")
             return None
 
         # Prepare request
@@ -91,7 +91,7 @@ class TranslationEngine:
 
                 return translated_text
             else:
-                print(f"❌ خطا در ترجمه: {response.status_code}")
+                print(f"❌ Khata dar tarjome: {response.status_code}")
 
                 # Rotate API key on error
                 self.api_manager.rotate_api_key()
@@ -101,7 +101,7 @@ class TranslationEngine:
             print("⏱️  timeout")
             return None
         except Exception as e:
-            print(f"❌ خطای ترجمه: {e}")
+            print(f"❌ Khataye tarjome: {e}")
             return None
 
     def translate_all(self, chunks: List[TranslationChunk], progress_callback=None) -> Dict[str, int]:
@@ -117,7 +117,7 @@ class TranslationEngine:
             if chunk.is_processed:
                 results["skipped"] += 1
                 if progress_callback:
-                    progress_callback(i + 1, len(chunks), "تکراری")
+                    progress_callback(i + 1, len(chunks), "Tekrari")
                 continue
 
             # Translate chunk
@@ -126,11 +126,11 @@ class TranslationEngine:
             if translated_text:
                 results["success"] += 1
                 if progress_callback:
-                    progress_callback(i + 1, len(chunks), "موفق")
+                    progress_callback(i + 1, len(chunks), "Movafagh")
             else:
                 results["failed"] += 1
                 if progress_callback:
-                    progress_callback(i + 1, len(chunks), "ناموفق")
+                    progress_callback(i + 1, len(chunks), "Namovafagh")
 
         return results
 
@@ -147,15 +147,15 @@ class CloudflareWorkerTranslator:
         api_key = self.api_manager.get_default_api_key()
 
         if not api_key:
-            print("❌ هیچ کلید API تنظیم نشده است")
+            print("❌ Hich kelid API tanzim nashode ast")
             return None
 
         if not self.api_manager.check_rate_limit():
-            print("⚠️  محدودیت نرخ درخواست رعایت شد")
+            print("⚠️  Mahdoodiate nerkhe darkhast raayat shod")
             return None
 
         if not self.api_manager.check_daily_limit():
-            print("⚠️  محدودیت روزانه رعایت شد")
+            print("⚠️  Mahdoodiate roozane raayat shod")
             return None
 
         prompt = (
@@ -194,11 +194,11 @@ class CloudflareWorkerTranslator:
                     chunk.translation_time = time.time()
                     return translated_text
 
-            print(f"❌ خطا در ترجمه: {response.status_code}")
+            print(f"❌ Khata dar tarjome: {response.status_code}")
             return None
 
         except Exception as e:
-            print(f"❌ خطای ترجمه: {e}")
+            print(f"❌ Khataye tarjome: {e}")
             return None
 
     def translate_all(self, chunks: List[TranslationChunk], progress_callback=None) -> Dict[str, int]:
@@ -209,17 +209,17 @@ class CloudflareWorkerTranslator:
             if chunk.is_processed:
                 results["skipped"] += 1
                 if progress_callback:
-                    progress_callback(i + 1, len(chunks), "تکراری")
+                    progress_callback(i + 1, len(chunks), "Tekrari")
                 continue
 
             translated = self.translate_chunk(chunk)
             if translated:
                 results["success"] += 1
                 if progress_callback:
-                    progress_callback(i + 1, len(chunks), "موفق")
+                    progress_callback(i + 1, len(chunks), "Movafagh")
             else:
                 results["failed"] += 1
                 if progress_callback:
-                    progress_callback(i + 1, len(chunks), "ناموفق")
+                    progress_callback(i + 1, len(chunks), "Namovafagh")
 
         return results

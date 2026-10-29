@@ -35,7 +35,7 @@ class PDFProcessor:
                     })
                 return True
         except Exception as e:
-            print(f"❌ خطا در لود PDF: {e}")
+            print(f"❌ Khata dar load PDF: {e}")
             return False
 
     def _extract_blocks(self, page) -> List[Dict]:
@@ -167,7 +167,7 @@ class PDFProcessor:
                 f.write("\n")
             return True
         except Exception as e:
-            print(f"❌ خطا در ذخیره صفحه: {e}")
+            print(f"❌ Khata dar zakhire safhe: {e}")
             return False
 
     def close(self):
@@ -303,5 +303,5 @@ class TranslationManager:
 
             return True
         except Exception as e:
-            print(f"❌ خطا در لود کش: {e}")
+            print(f"❌ Khata dar load kesh: {e}")
             return False

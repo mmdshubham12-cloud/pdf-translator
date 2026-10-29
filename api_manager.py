@@ -56,7 +56,7 @@ class APIManager:
             self._save_config()
             return defaults
         except Exception as e:
-            print(f"❌ خطا در لود کانفیگ: {e}")
+            print(f"❌ Khata dar load config: {e}")
             return defaults
 
     def _load_stats(self) -> Dict:
@@ -65,7 +65,7 @@ class APIManager:
             with open(self.stats_path, 'r', encoding='utf-8') as f:
                 return json.load(f)
         except Exception as e:
-            print(f"❌ خطا در لود آمار: {e}")
+            print(f"❌ Khata dar load amar: {e}")
             return {
                 "daily_requests": 0,
                 "daily_limit": 500,
@@ -83,7 +83,7 @@ class APIManager:
             with open(self.config_path, 'w', encoding='utf-8') as f:
                 yaml.dump(self.config, f, default_flow_style=False, allow_unicode=True)
         except Exception as e:
-            print(f"❌ خطا در ذخیره کانفیگ: {e}")
+            print(f"❌ Khata dar zakhire config: {e}")
 
     def _save_stats(self):
         """Save API stats to file"""
@@ -91,7 +91,7 @@ class APIManager:
             with open(self.stats_path, 'w', encoding='utf-8') as f:
                 json.dump(self.stats, f, indent=2, ensure_ascii=False)
         except Exception as e:
-            print(f"❌ خطا در ذخیره آمار: {e}")
+            print(f"❌ Khata dar zakhire amar: {e}")
 
     def get_api_keys(self) -> List[Dict]:
         """Get all API keys"""
@@ -107,7 +107,7 @@ class APIManager:
             # Check for duplicate
             for key in self.config["api_keys"]:
                 if key.get("api_key") == api_key:
-                    print(f"⚠️  کلید قبلاً اضافه شده است")
+                    print(f"⚠️  Kelid ghablan ezafe shode ast")
                     return False
 
             new_key = {
@@ -121,7 +121,7 @@ class APIManager:
             self.config["api_keys"].append(new_key)
             self._save_config()
 
-            print(f"✅ کلید با موفقیت اضافه شد: {name}")
+            print(f"✅ Kelid ba movafaghiat ezafe shod: {name}")
             return True
 
     def set_default_api_key(self, api_key: str) -> bool:
@@ -136,10 +136,10 @@ class APIManager:
                     key["is_default"] = True
                     self.config["default_api_key"] = api_key
                     self._save_config()
-                    print(f"✅ کلید پیش‌فرض تنظیم شد: {key.get('name')}")
+                    print(f"✅ Kelide pishfarz tanzim shod: {key.get('name')}")
                     return True
 
-            print(f"❌ کلید یافت نشد")
+            print(f"❌ Kelid yaft nashod")
             return False
 
     def get_default_api_key(self) -> Optional[str]:
@@ -189,7 +189,7 @@ class APIManager:
 
             # Check daily limit
             if self.stats["daily_requests"] >= self.stats["daily_limit"]:
-                print(f"⚠️  محدودیت روزانه رعایت شد ({self.stats['daily_requests']}/{self.stats['daily_limit']})")
+                print(f"⚠️  Mahdoodiate roozane raayat shod ({self.stats['daily_requests']}/{self.stats['daily_limit']})")
                 return False
 
             # Check rate limit
@@ -198,7 +198,7 @@ class APIManager:
 
             if time_since_last < (60 / self.stats["rate_limit"]):
                 wait_time = (60 / self.stats["rate_limit"]) - time_since_last
-                print(f"⏳ در حال انتظار {wait_time:.2f} ثانیه...")
+                print(f"⏳ Dar hale entezar {wait_time:.2f} sanie...")
                 time.sleep(wait_time)
 
             self.last_request_time = time.time()
@@ -267,8 +267,8 @@ class APIManager:
                     if deleted_key.get("is_default"):
                         self.config["default_api_key"] = None
 
-                    print(f"✅ کلید حذف شد: {deleted_key.get('name')}")
+                    print(f"✅ Kelid hazf shod: {deleted_key.get('name')}")
                     return True
 
-            print(f"❌ کلید یافت نشد")
+            print(f"❌ Kelid yaft nashod")
             return False

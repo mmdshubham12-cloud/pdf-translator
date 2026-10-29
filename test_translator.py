@@ -19,7 +19,7 @@ from translator import TranslationEngine
 def test_translation():
     """Test translation with sample text"""
     print("="*60)
-    print("🧪 تست ترجمه")
+    print("🧪 Test tarjome")
     print("="*60)
 
     # Initialize components
@@ -30,75 +30,75 @@ def test_translation():
     api_key = api_manager.get_default_api_key()
 
     if not api_key:
-        print("\n❌ هیچ کلید API تنظیم نشده است")
-        print("لطفاً ابتدا یک کلید API اضافه کنید:")
-        name = input("نام کلید: ")
-        api_key = input("کلید API: ")
+        print("\n❌ Hich kelid API tanzim nashode ast")
+        print("Lotfan aval yek kelid API ezafe konid:")
+        name = input("Nam kelid: ")
+        api_key = input("Kelid API: ")
 
         if api_manager.add_api_key(name, api_key):
             api_manager.set_default_api_key(api_key)
         else:
-            print("❌ اضافه کردن کلید ناموفق بود")
+            print("❌ Ezafe kardan kelid namovafagh bood")
             return False
 
     # Test text
     test_text = """
-    سلام، این یک متن تستی برای ترجمه است.
-    این متن شامل چند جمله ساده است.
-    همچنین می‌تواند حاوی اطلاعات مفید باشد.
+    Salam, in yek matne testi baraye tarjome ast.
+    In matn shamel chand jomele sade ast.
+    Hamchenin mitavanad havi-e etelaat mofid bashad.
     """
 
-    print("\n📝 متن تستی:")
+    print("\n📝 Matne testi:")
     print(test_text)
 
     # Translate
-    print("\n🔄 شروع ترجمه...")
+    print("\n🔄 Shoro tarjome...")
     translated = translation_engine.translate_chunk(
         TranslationChunk(text=test_text.strip(), page_num=0, block_index=0)
     )
 
     if translated:
-        print("\n✅ ترجمه موفق!")
-        print("\n📝 متن ترجمه شده:")
+        print("\n✅ Tarjome movafagh!")
+        print("\n📝 Matne tarjome shode:")
         print(translated)
         return True
     else:
-        print("\n❌ ترجمه ناموفق")
+        print("\n❌ Tarjome namovafagh")
         return False
 
 
 def test_pdf_processing():
     """Test PDF processing"""
     print("\n" + "="*60)
-    print("🧪 تست پردازش PDF")
+    print("🧪 Test pardazesh PDF")
     print("="*60)
 
-    pdf_path = input("\nمسیر فایل PDF را وارد کنید (برای رد کردن، Enter بزنید): ").strip()
+    pdf_path = input("\nMasire file PDF ra vared konid (baraye rad kardan, Enter bezanid): ").strip()
 
     if not pdf_path:
-        print("❌ مسیر PDF وارد نشد")
+        print("❌ Masire PDF vared nashod")
         return False
 
     if not Path(pdf_path).exists():
-        print(f"❌ فایل {pdf_path} یافت نشد")
+        print(f"❌ File {pdf_path} yaft nashod")
         return False
 
-    print(f"\n📂 بارگذاری PDF: {pdf_path}")
+    print(f"\n📂 Bargozari PDF: {pdf_path}")
 
     processor = PDFProcessor(pdf_path)
     if not processor.load_pdf():
-        print("❌ بارگذاری PDF ناموفق بود")
+        print("❌ Bargozari PDF namovafagh bood")
         return False
 
-    print(f"✅ PDF بارگذاری شد. {len(processor.pages)} صفحه یافت شد.")
+    print(f"✅ PDF bargozari shod. {len(processor.pages)} safhe yaft shod.")
 
     # Extract text
     text = processor.extract_text_with_formatting()
-    print(f"✅ {len(text)} کاراکتر استخراج شد")
+    print(f"✅ {len(text)} karakter estekhraj shod")
 
     # Extract structured data
     structured_data = processor.extract_text_with_structure()
-    print(f"✅ {len(structured_data)} صفحه و {len(structured_data[0]['blocks'])} بلوک استخراج شد")
+    print(f"✅ {len(structured_data)} safhe va {len(structured_data[0]['blocks'])} blok estekhraj shod")
 
     return True
 
@@ -106,32 +106,32 @@ def test_pdf_processing():
 def test_api_manager():
     """Test API manager"""
     print("\n" + "="*60)
-    print("🧪 تست API Manager")
+    print("🧪 Test API Manager")
     print("="*60)
 
     api_manager = APIManager()
 
     # Test add key
-    print("\n1. اضافه کردن کلید جدید...")
+    print("\n1. Ezafe kardan kelide jadid...")
     if api_manager.add_api_key("Test Key", "test-api-key-123"):
-        print("✅ کلید اضافه شد")
+        print("✅ Kelid ezafe shod")
     else:
-        print("❌ اضافه کردن کلید ناموفق بود")
+        print("❌ Ezafe kardan kelid namovafagh bood")
 
     # Test set default
-    print("\n2. تنظیم کلید پیش‌فرض...")
+    print("\n2. Tanzim kelide pishfarz...")
     api_key = api_manager.get_api_keys()[0]['api_key']
     if api_manager.set_default_api_key(api_key):
-        print("✅ کلید پیش‌فرض تنظیم شد")
+        print("✅ Kelide pishfarz tanzim shod")
     else:
-        print("❌ تنظیم کلید پیش‌فرض ناموفق بود")
+        print("❌ Tanzim kelide pishfarz namovafagh bood")
 
     # Test stats
-    print("\n3. نمایش آمار...")
+    print("\n3. Namayesh amar...")
     stats = api_manager.get_stats()
-    print(f"   درخواست‌های امروز: {stats['daily_requests']}/{stats['daily_limit']}")
-    print(f"   توکن استفاده شده: {stats['tokens_used']}/{stats['tokens_limit']}")
-    print(f"   درصد استفاده: {stats['usage_percent']:.1f}%")
+    print(f"   Darkhasthaye emrooz: {stats['daily_requests']}/{stats['daily_limit']}")
+    print(f"   Token estefade shode: {stats['tokens_used']}/{stats['tokens_limit']}")
+    print(f"   Darsade estefade: {stats['usage_percent']:.1f}%")
 
     return True
 
@@ -139,21 +139,21 @@ def test_api_manager():
 def main():
     """Main test function"""
     print("\n" + "="*60)
-    print("🧪 آزمایش‌های PDF Translator")
+    print("🧪 Azmayeshhaye PDF Translator")
     print("="*60)
 
     while True:
         print("\n" + "="*60)
-        print("📋 منوی آزمایش")
+        print("📋 Menu azmayesh")
         print("="*60)
-        print("1. تست API Manager")
-        print("2. تست ترجمه")
-        print("3. تست پردازش PDF")
-        print("4. همه آزمایش‌ها")
-        print("5. خروج")
+        print("1. Test API Manager")
+        print("2. Test tarjome")
+        print("3. Test pardazesh PDF")
+        print("4. Hame azmayeshha")
+        print("5. Khorooj")
         print("="*60)
 
-        choice = input("\nانتخاب کنید (1-5): ").strip()
+        choice = input("\nEntekhab konid (1-5): ").strip()
 
         if choice == "1":
             test_api_manager()
@@ -166,20 +166,20 @@ def main():
             test_translation()
             test_pdf_processing()
         elif choice == "5":
-            print("\n👋 خداحافظ!")
+            print("\n👋 Khodahafez!")
             break
         else:
-            print("❌ گزینه نامعتبر")
+            print("❌ Gozine namotabar")
 
 
 if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
-        print("\n\n⚠️  آزمایش متوقف شد")
+        print("\n\n⚠️  Azmayesh motavaghef shod")
         sys.exit(1)
     except Exception as e:
-        print(f"\n\n❌ خطای ناگهانی: {e}")
+        print(f"\n\n❌ Khataye nagahani: {e}")
         import traceback
         traceback.print_exc()
         sys.exit(1)

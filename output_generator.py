@@ -144,7 +144,7 @@ class HTMLGenerator:
                 f.write(html)
             return True
         except Exception as e:
-            print(f"❌ خطا در ذخیره HTML: {e}")
+            print(f"❌ Khata dar zakhire HTML: {e}")
             return False
 
 
@@ -156,13 +156,13 @@ class PDFGenerator:
             from fpdf import FPDF
             self.FPDF = FPDF
         except ImportError:
-            print("⚠️  fpdf2 نصب نیست. نصب کنید: pip install fpdf2")
+            print("⚠️  fpdf2 nasb nist. Nasb konid: pip install fpdf2")
             self.FPDF = None
 
     def generate(self, structured_data: List[Dict], pdf_path: str) -> bool:
         """Generate PDF directly from structured data (translated text)"""
         if not self.FPDF:
-            print("❌ fpdf2 نصب نیست")
+            print("❌ fpdf2 nasb nist")
             return False
 
         try:
@@ -198,7 +198,7 @@ class PDFGenerator:
             return True
 
         except Exception as e:
-            print(f"❌ خطا در تولید PDF: {e}")
+            print(f"❌ Khata dar tolid PDF: {e}")
             return False
 
 

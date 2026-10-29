@@ -33,7 +33,7 @@ class PDFTranslatorApp:
 
     def initialize(self):
         """Initialize application components"""
-        print("🚀 شروع راه‌اندازی PDF Translator...")
+        print("🚀 Shoro rah-andazi PDF Translator...")
 
         # Initialize translation engine
         self.translation_engine = TranslationEngine(
@@ -47,22 +47,22 @@ class PDFTranslatorApp:
             self.api_manager
         )
 
-        print("✅ راه‌اندازی با موفقیت انجام شد")
+        print("✅ Rah-andazi ba movafaghiat anjam shod")
 
     def load_pdf(self, pdf_path: str) -> bool:
         """Load PDF file"""
-        print(f"\n📂 بارگذاری PDF: {pdf_path}")
+        print(f"\n📂 Bargozari PDF: {pdf_path}")
 
         processor = PDFProcessor(pdf_path)
         if not processor.load_pdf():
-            print("❌ بارگذاری PDF ناموفق بود")
+            print("❌ Bargozari PDF namovafagh bood")
             return False
 
         self.current_pdf = processor
         self.current_structured_data = processor.extract_text_with_structure()
         self.current_chunks = self.translation_manager.create_chunks(self.current_structured_data)
 
-        print(f"✅ PDF بارگذاری شد. {len(self.current_structured_data)} صفحه یافت شد.")
+        print(f"✅ PDF bargozari shod. {len(self.current_structured_data)} safhe yaft shod.")
         return True
 
     def _sync_translations_to_structure(self):
@@ -81,10 +81,10 @@ class PDFTranslatorApp:
     def translate_pdf(self, use_worker: bool = False):
         """Translate PDF content"""
         if not self.current_structured_data:
-            print("❌ PDF بارگذاری نشده است")
+            print("❌ PDF bargozari nashode ast")
             return
 
-        print(f"\n🔄 شروع ترجمه ({len(self.current_chunks)} بخش)...")
+        print(f"\n🔄 Shoro tarjome ({len(self.current_chunks)} bakhsh)...")
 
         # Use appropriate translator
         translator = self.worker_translator if use_worker else self.translation_engine
@@ -92,10 +92,10 @@ class PDFTranslatorApp:
         # Translate all chunks
         results = translator.translate_all(self.current_chunks, progress_callback=self._update_progress)
 
-        print(f"\n📊 خلاصه ترجمه:")
-        print(f"   ✅ موفق: {results['success']}")
-        print(f"   ❌ ناموفق: {results['failed']}")
-        print(f"   ⏭️  تکراری: {results['skipped']}")
+        print(f"\n📊 Khulase tarjome:")
+        print(f"   ✅ Movafagh: {results['success']}")
+        print(f"   ❌ Namovafagh: {results['failed']}")
+        print(f"   ⏭️  Tekrari: {results['skipped']}")
 
         # Sync translations to page structure and save cache
         self._sync_translations_to_structure()
@@ -104,10 +104,10 @@ class PDFTranslatorApp:
     def generate_outputs(self, output_format: str = "pdf"):
         """Generate output files"""
         if not self.current_structured_data:
-            print("❌ داده‌ای برای تولید وجود ندارد")
+            print("❌ Dadei baraye tolid vojood nadarad")
             return
 
-        print(f"\n📄 تولید خروجی ({output_format})...")
+        print(f"\n📄 Tolid khorooji ({output_format})...")
 
         outputs = self.output_manager.generate_outputs(
             self.current_structured_data,
@@ -115,7 +115,7 @@ class PDFTranslatorApp:
             output_format
         )
 
-        print(f"✅ خروجی‌ها با موفقیت تولید شد:")
+        print(f"✅ Khoroojiha ba movafaghiat tolid shod:")
         for format_type, path in outputs.items():
             print(f"   {format_type.upper()}: {path}")
 
@@ -164,113 +164,113 @@ def main():
     # Check if API keys exist
     api_keys = app.get_api_keys()
     if not api_keys:
-        print("\n⚠️  هیچ کلید API تنظیم نشده است!")
-        print("لطفاً ابتدا یک کلید API اضافه کنید:")
+        print("\n⚠️  Hich kelid API tanzim nashode ast!")
+        print("Lotfan aval yek kelid API ezafe konid:")
 
-        name = input("نام کلید: ")
-        api_key = input("کلید API: ")
+        name = input("Nam kelid: ")
+        api_key = input("Kelid API: ")
 
         if app.add_api_key(name, api_key):
             app.set_default_api_key(api_key)
-            print("✅ کلید با موفقیت اضافه و تنظیم شد")
+            print("✅ Kelid ba movafaghiat ezafe va tanzim shod")
 
     # Main menu
     while True:
         print("\n" + "="*60)
-        print("📋 منوی اصلی")
+        print("📋 Menu asli")
         print("="*60)
-        print("1. بارگذاری PDF")
-        print("2. ترجمه PDF")
-        print("3. تولید خروجی")
-        print("4. مشاهده آمار")
-        print("5. افزودن کلید API")
-        print("6. تنظیم کلید پیش‌فرض")
-        print("7. تغییر کلید API")
-        print("8. خروج")
+        print("1. Bargozari PDF")
+        print("2. Tarjome PDF")
+        print("3. Tolid khorooji")
+        print("4. Moshahede amar")
+        print("5. Ezafe kardan kelid API")
+        print("6. Tanzim kelide pishfarz")
+        print("7. Taghir kelid API")
+        print("8. Khorooj")
         print("="*60)
 
-        choice = input("انتخاب کنید (1-8): ").strip()
+        choice = input("Entekhab konid (1-8): ").strip()
 
         if choice == "1":
-            pdf_path = input("مسیر فایل PDF: ").strip()
+            pdf_path = input("Masire file PDF: ").strip()
             if app.load_pdf(pdf_path):
-                print("✅ PDF بارگذاری شد")
+                print("✅ PDF bargozari shod")
 
         elif choice == "2":
             if not app.current_structured_data:
-                print("❌ ابتدا PDF را بارگذاری کنید")
+                print("❌ Aval PDF ra bargozari konid")
                 continue
 
-            use_worker = input("از Cloudflare Worker استفاده کنید؟ (y/n): ").strip().lower() == 'y'
+            use_worker = input("Az Cloudflare Worker estefade konid? (y/n): ").strip().lower() == 'y'
             app.translate_pdf(use_worker=use_worker)
 
         elif choice == "3":
             if not app.current_structured_data:
-                print("❌ ابتدا PDF را ترجمه کنید")
+                print("❌ Aval PDF ra tarjome konid")
                 continue
 
-            output_format = input("فرمت خروجی (html/pdf): ").strip().lower()
+            output_format = input("Format khorooji (html/pdf): ").strip().lower()
             app.generate_outputs(output_format)
 
         elif choice == "4":
             stats = app.get_stats()
-            print("\n📊 آمار:")
-            print(f"   درخواست‌های امروز: {stats['api_stats']['daily_requests']}/{stats['api_stats']['daily_limit']}")
-            print(f"   توکن استفاده شده: {stats['api_stats']['tokens_used']}/{stats['api_stats']['tokens_limit']}")
-            print(f"   درصد استفاده: {stats['api_stats']['usage_percent']:.1f}%")
-            print(f"   کل بخش‌های ترجمه شده: {stats['translation_stats']['processed_chunks']}/{stats['translation_stats']['total_chunks']}")
+            print("\n📊 Amar:")
+            print(f"   Darkhasthaye emrooz: {stats['api_stats']['daily_requests']}/{stats['api_stats']['daily_limit']}")
+            print(f"   Token estefade shode: {stats['api_stats']['tokens_used']}/{stats['api_stats']['tokens_limit']}")
+            print(f"   Darsade estefade: {stats['api_stats']['usage_percent']:.1f}%")
+            print(f"   Kol bakhshhaye tarjome shode: {stats['translation_stats']['processed_chunks']}/{stats['translation_stats']['total_chunks']}")
 
         elif choice == "5":
-            name = input("نام کلید: ")
-            api_key = input("کلید API: ")
+            name = input("Nam kelid: ")
+            api_key = input("Kelid API: ")
             if app.add_api_key(name, api_key):
-                print("✅ کلید اضافه شد")
+                print("✅ Kelid ezafe shod")
 
         elif choice == "6":
             api_keys = app.get_api_keys()
-            print("\nکلیدهای موجود:")
+            print("\nKelidhaye mojood:")
             for i, key in enumerate(api_keys, 1):
-                default = " (پیش‌فرض)" if key.get('is_default') else ""
+                default = " (pishfarz)" if key.get('is_default') else ""
                 print(f"{i}. {key.get('name')}{default}")
 
-            key_num = input("شماره کلید برای تنظیم به عنوان پیش‌فرض: ")
+            key_num = input("Shomareye kelid baraye tanzim be onvane pishfarz: ")
             if key_num.isdigit() and 1 <= int(key_num) <= len(api_keys):
                 selected_key = api_keys[int(key_num) - 1]['api_key']
                 app.set_default_api_key(selected_key)
-                print("✅ کلید پیش‌فرض تنظیم شد")
+                print("✅ Kelide pishfarz tanzim shod")
 
         elif choice == "7":
             api_keys = app.get_api_keys()
             if api_keys:
-                print("\nکلیدهای موجود:")
+                print("\nKelidhaye mojood:")
                 for i, key in enumerate(api_keys, 1):
-                    default = " (پیش‌فرض)" if key.get('is_default') else ""
+                    default = " (pishfarz)" if key.get('is_default') else ""
                     print(f"{i}. {key.get('name')}{default}")
 
-                key_num = input("شماره کلید برای تغییر: ")
+                key_num = input("Shomareye kelid baraye taghir: ")
                 if key_num.isdigit() and 1 <= int(key_num) <= len(api_keys):
                     selected_key = api_keys[int(key_num) - 1]['api_key']
                     app.set_default_api_key(selected_key)
-                    print("✅ کلید پیش‌فرض تغییر کرد")
+                    print("✅ Kelide pishfarz taghir kard")
             else:
-                print("❌ هیچ کلیدی وجود ندارد")
+                print("❌ Hich kelidi vojood nadarad")
 
         elif choice == "8":
-            print("\n👋 خداحافظ!")
+            print("\n👋 Khodahafez!")
             break
 
         else:
-            print("❌ گزینه نامعتبر")
+            print("❌ Gozine namotabar")
 
 
 if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
-        print("\n\n⚠️  برنامه متوقف شد")
+        print("\n\n⚠️  Barname motavaghef shod")
         sys.exit(1)
     except Exception as e:
-        print(f"\n\n❌ خطای ناگهانی: {e}")
+        print(f"\n\n❌ Khataye nagahani: {e}")
         import traceback
         traceback.print_exc()
         sys.exit(1)
