@@ -27,6 +27,12 @@ jobs:
             pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev \
             libtinfo-dev cmake libffi-dev libssl-dev
 
+      - name: Set up Java 17 (required by Android Gradle plugin)
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "17"
+
       - name: Install buildozer and cython
         run: |
           pip install --upgrade pip
